@@ -1,0 +1,61 @@
+---
+title: "Presentación — Reto 2"
+author: "Tu Nombre"
+date: "`r Sys.Date()`"
+output: ioslides_presentation
+params:
+  data_file: "../Datos/CRON2W4e01_depurado.csv"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(readr)
+  library(DT)
+  library(glue)
+})
+df <- read_csv(params$data_file, show_col_types = FALSE)
+```
+
+## Objetivos del proyecto
+- Analizar la **confianza institucional** en distintos países.
+- Explorar diferencias sociodemográficas (edad, género).
+- Elaborar un **dashboard interactivo** y un informe reproducible.
+
+## Tabla resumen
+```{r}
+resumen <- df %>%
+  summarise(
+    N = n(),
+    Edad_media = mean(agea, na.rm = TRUE),
+    Confianza_media = mean(trust_index, na.rm = TRUE)
+  )
+knitr::kable(resumen, digits = 2)
+```
+El dataset contiene **`r nrow(df)` observaciones** y **`r ncol(df)` variables**.
+La edad promedio es **`r round(mean(df$agea, na.rm=TRUE),1)` años**,
+y la confianza institucional media es **`r round(mean(df$trust_index, na.rm=TRUE),2)`**.
+
+## Gráfico principal
+```{r}
+df %>%
+  filter(gndr_lab %in% c("Hombre","Mujer")) %>%
+  group_by(cntry, gndr_lab) %>%
+  summarise(trust = mean(trust_index, na.rm = TRUE), .groups = "drop") %>%
+  ggplot(aes(x = reorder(cntry, trust), y = trust, fill = gndr_lab)) +
+  geom_col(position = position_dodge()) +
+  coord_flip() +
+  labs(x = "País", y = "Índice de confianza (1–5)", fill = "Género") +
+  theme_minimal()
+```
+
+## Conclusiones
+- La confianza institucional media se sitúa en torno a **3 puntos** (escala 1–5).
+- Existen **diferencias entre países** y según el **género**.
+- Los resultados apoyan la necesidad de estudios comparativos internacionales.
+
+## Próximos pasos
+- Ampliar análisis con más indicadores sociodemográficos.
+- Incorporar series temporales si están disponibles.
+- Explorar modelos predictivos.

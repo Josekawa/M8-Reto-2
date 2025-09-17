@@ -1,0 +1,69 @@
+---
+title: "Informe técnico — Reto 2"
+author: "Tu Nombre"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document: default
+  html_document:
+    toc: true
+    toc_float: true
+params:
+  data_file: "../Datos/CRON2W4e01_depurado.csv"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(readr)
+  library(DT)
+  library(glue)
+})
+```
+
+# Introducción
+Este informe resume algunos de los principales hallazgos del proyecto de Ciencia de Datos, basados en el dataset **CRONOS2 Wave 4**.  
+Los análisis se enfocan en **la confianza institucional** y en las **diferencias sociodemográficas** (género y edad).
+
+# Carga de datos
+```{r}
+df <- read_csv(params$data_file, show_col_types = FALSE)
+n_registros <- nrow(df)
+n_vars <- ncol(df)
+glue("Número de registros: {n_registros} | Número de variables: {n_vars}")
+```
+
+# Tabla resumen
+```{r}
+resumen <- df %>%
+  summarise(
+    N = n(),
+    Edad_media = mean(agea, na.rm = TRUE),
+    Confianza_media = mean(trust_index, na.rm = TRUE)
+  )
+DT::datatable(resumen, options = list(dom = 't'))
+```
+
+El dataset contiene `r n_registros` observaciones. La edad promedio es de `r round(mean(df$agea, na.rm=TRUE),1)` años, y la confianza institucional media es `r round(mean(df$trust_index, na.rm=TRUE),2)`.
+
+# Gráfico principal
+A continuación, se muestra el **índice de confianza institucional medio por país y género**:
+
+```{r}
+df %>%
+  filter(gndr_lab %in% c("Hombre","Mujer")) %>%
+  group_by(cntry, gndr_lab) %>%
+  summarise(trust = mean(trust_index, na.rm = TRUE), .groups = "drop") %>%
+  ggplot(aes(x = reorder(cntry, trust), y = trust, fill = gndr_lab)) +
+  geom_col(position = position_dodge()) +
+  coord_flip() +
+  labs(x = "País", y = "Índice de confianza (1–5)", fill = "Género") +
+  theme_minimal()
+```
+
+Este gráfico permite observar comparaciones entre países y las diferencias de confianza según el género.
+
+# Conclusiones
+- Los valores de confianza institucional oscilan entre 1 y 5, con una media en torno a 3.  
+- Se observan diferencias entre países y entre hombres y mujeres.  
+- El análisis permite orientar políticas públicas o investigaciones futuras sobre la percepción ciudadana.
