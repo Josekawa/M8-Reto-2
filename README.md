@@ -17,11 +17,10 @@ It uses the dataset **CRONOS2 Wave 4** to explore **trust in institutions** acro
 - **Institutional trust** shows clear differences between institutions (e.g. higher in the police, lower in political parties) and varies across demographic and socioeconomic groups.  
 
 ## Repository Structure
-- `data/` → raw and cleaned datasets (`CRON2W4e01.csv`, `CRON2W4e01_depurado.csv`)  
-- `docs/` → written report (PDF/Word)  
-- `presentacion.Rmd` → R Markdown slides with main findings  
+- `Dashboard/` → HTML and Rmd
+- `Datos/ → raw and cleaned datasets + script(`CRON2W4e01.csv`, `CRON2W4e01_depurado.csv`) + script
+- `presentacion` → HTML and Rmd
 - `informe.Rmd` → technical report generated with **knitr**  
-- `plots/` → visualizations used in the analysis  
 
 ## Requirements
 This project was implemented in **R** using:
