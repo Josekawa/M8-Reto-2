@@ -1,0 +1,148 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+  ignorenonframetext,
+]{beamer}
+\newif\ifbibliography
+\usepackage{pgfpages}
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbolsempty
+% remove section numbering
+\setbeamertemplate{part page}{
+  \centering
+  \begin{beamercolorbox}[sep=16pt,center]{part title}
+    \usebeamerfont{part title}\insertpart\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{section page}{
+  \centering
+  \begin{beamercolorbox}[sep=12pt,center]{section title}
+    \usebeamerfont{section title}\insertsection\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{subsection page}{
+  \centering
+  \begin{beamercolorbox}[sep=8pt,center]{subsection title}
+    \usebeamerfont{subsection title}\insertsubsection\par
+  \end{beamercolorbox}
+}
+% Prevent slide breaks in the middle of a paragraph
+\widowpenalties 1 10000
+\raggedbottom
+\AtBeginPart{
+  \frame{\partpage}
+}
+\AtBeginSection{
+  \ifbibliography
+  \else
+    \frame{\sectionpage}
+  \fi
+}
+\AtBeginSubsection{
+  \frame{\subsectionpage}
+}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Presentación -- Proyecto CRONOS2},
+  pdfauthor={Jose Carlos Gomez Fernandez},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Presentación -- Proyecto CRONOS2}
+\author{Jose Carlos Gomez Fernandez}
+\date{2025-09-17}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{Introducción}
+\phantomsection\label{introducciuxf3n}
+Este proyecto utiliza datos de CRONOS-2 Wave 4, una encuesta
+internacional sobre actitudes sociales y políticas. El objetivo es
+analizar la confianza en diferentes cuestiones sociales y explorar cómo
+varía según factores sociodemográficos como edad, género y nivel
+socioeconómico.
+
+La presentación ofrece una visión descriptiva de los indicadores
+principales y destaca patrones relevantes para comprender la relación
+entre ciudadanía y opinión.
+\end{frame}
+
+\begin{frame}{Tabla resumen}
+\phantomsection\label{tabla-resumen}
+\pandocbounded{\includegraphics[keepaspectratio]{presentacion_files/figure-beamer/unnamed-chunk-1-1.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio]{presentacion_files/figure-beamer/unnamed-chunk-1-2.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio]{presentacion_files/figure-beamer/unnamed-chunk-1-3.pdf}}
+\end{frame}
+
+\begin{frame}{Interpretación}
+\phantomsection\label{interpretaciuxf3n}
+En nuestra muestra (6.032 casos):
+
+La edad media es de 50,8 años (D.E. = 29,4).
+
+La satisfacción con los ingresos presenta un promedio de 1,7 en una
+escala de 1 a 10.
+
+El índice medio de confianza institucional es de 4,5 en una escala de 1
+a 5.
+
+👉 Estos resultados muestran diferencias notables entre países, lo que
+subraya la importancia de considerar los factores sociodemográficos y
+económicos en el análisis de la confianza en las instituciones.
+\end{frame}
+
+\end{document}

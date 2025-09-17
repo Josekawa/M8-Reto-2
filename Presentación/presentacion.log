@@ -1,0 +1,15 @@
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.9.17)  17 SEP 2025 22:59
+entering extended mode
+ restricted \write18 enabled.
+ %&-line parsing enabled.
+**./presentacion.tex
+(presentacion.tex
+LaTeX2e <2025-06-01> patch level 1
+L3 programming layer <2025-08-13>
+
+
+! Sorry, but C:\Users\zoso9\AppData\Local\Programs\MiKTeX\miktex\bin\x64\pdflatex.exe did not succeed.
+
+! The log file hopefully contains the information to get MiKTeX going again:
+
+!   C:\Users\zoso9\AppData\Local\MiKTeX\miktex\log\pdflatex.log

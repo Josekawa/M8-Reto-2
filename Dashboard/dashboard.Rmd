@@ -9,7 +9,7 @@ output:
     theme: flatly
 params:
   # Directorio y nombre base del archivo depurado en tu PC (sin extensión)
-  data_dir: "C:/Users/zoso9/Desktop/M8-Reto-2/Datos"
+  data_dir: "../Datos/CRON2W4e01_depurado.csv"
   base_name: "CRON2W4e01_depurado"
   # Lista de ítems de confianza a graficar en el panel automático
   likert_items: ["w4q61","w4q62","w4q63","w4q64","w4q65","w4q66","w4q67","w4q68","w4q69","w4q70","w4q71","w4q72","w4q73"]
@@ -63,7 +63,8 @@ read_dep <- function(dir, base) {
   stop("Extensión no soportada: ", ext)
 }
 
-df <- read_dep(data_dir, base_name) %>%
+df <- readr::read_csv("../Datos/CRON2W4e01_depurado.csv",
+                      show_col_types = FALSE) %>%
   janitor::clean_names()
 
 glimpse(df)

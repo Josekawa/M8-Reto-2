@@ -18,8 +18,9 @@ library(knitr)
 
 
 ```{r}
-df <- readr::read_csv("C:/Users/zoso9/Desktop/M8-Reto-2/Datos/CRON2W4e01_depurado.csv", 
+df <- readr::read_csv("../Datos/CRON2W4e01_depurado.csv",
                       show_col_types = FALSE)
+
 
 # Normalizar nombres de columnas
 names(df) <- tolower(names(df))
