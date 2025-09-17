@@ -1,182 +1,281 @@
+
 ---
-title: "Dashboard — Confianza y Prioridades Sociales (CRONOS2 Wave 4)"
-output: 
-  flexdashboard::flex_dashboard:
-    orientation: rows
-    vertical_layout: fill
-runtime: shiny
+title: "CRONOS2 – Dashboard socioeconómico (con demografía)"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: flatly
+params:
+  # Directorio y nombre base del archivo depurado en tu PC (sin extensión)
+  data_dir: "C:/Users/zoso9/Desktop/M8-Reto-2/Datos"
+  base_name: "CRON2W4e01_depurado"
+  # Lista de ítems de confianza a graficar en el panel automático
+  likert_items: ["w4q61","w4q62","w4q63","w4q64","w4q65","w4q66","w4q67","w4q68","w4q69","w4q70","w4q71","w4q72","w4q73"]
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 9, fig.height = 5)
+```
+
+# 1. Carga de datos y paquetes
+
+```{r}
 # Paquetes
-suppressPackageStartupMessages({
-  library(tidyverse)
-  library(readr)
-  library(flexdashboard)
-  library(plotly)
-  library(DT)
-  library(scales)
-})
+library(tidyverse)   # incluye dplyr, ggplot2, readr, etc.
+library(janitor)
+library(scales)
+library(viridisLite)
+library(viridis)
+suppressWarnings(suppressMessages({
+  library(Hmisc)
+  library(readxl)    # por si el depurado está en xlsx
+}))
 
-# Carga de datos (ruta relativa desde la carpeta 'Dashboard' a 'Datos')
-# Estructura esperada en tu PC:
-# C:/Users/zoso9/Desktop/Tarea 2/Datos/CRON2W4e01_depurado.csv
-# C:/Users/zoso9/Desktop/Tarea 2/Dashboard/dashboard.Rmd
-# Por tanto, desde Dashboard a Datos: ../Datos/archivo.csv
-df <- read_csv("../Datos/CRON2W4e01_depurado.csv", show_col_types = FALSE)
+# Resolver la ruta del archivo depurado en tu PC
+data_dir  <- params$data_dir
+base_name <- params$base_name
 
-# Vectores auxiliares
-paises <- sort(unique(df$cntry))
-cohortes <- df$age_group %>% unique() %>% na.omit() %>% as.character() %>% sort()
-
-# Funciones auxiliares
-mode_labels <- c("F2F (presencial)","CATI (teléfono)","CAWI (online)","Otro","NS/NC")
-```
-
-Column {.sidebar}
------------------------------------------------------------------------
-
-### Filtros
-```{r}
-selectInput("pais", "País", choices = c("Todos", paises), selected = "Todos")
-selectInput("gndr", "Género", choices = c("Todos","Hombre","Mujer"), selected = "Todos")
-selectInput("ageg", "Cohorte de edad", choices = c("Todas", cohortes), selected = "Todas")
-```
-
-Row
------------------------------------------------------------------------
-
-### KPI — Resumen de confianza
-```{r}
-renderUI({
-  datos <- df
-  if (input$pais != "Todos") datos <- dplyr::filter(datos, cntry == input$pais)
-  if (input$gndr != "Todos") datos <- dplyr::filter(datos, gndr_lab == input$gndr)
-  if (input$ageg != "Todas") datos <- dplyr::filter(datos, age_group == input$ageg)
-
-  trust_mean <- mean(datos$trust_index, na.rm = TRUE)
-  n_obs <- nrow(datos)
-
-  htmltools::div(
-    style = "padding: 8px;",
-    htmltools::h3(sprintf("Índice de confianza medio: %.2f", trust_mean)),
-    htmltools::p(sprintf("Observaciones: %s", scales::comma(n_obs)))
+# Función robusta de lectura (intenta varias extensiones comunes)
+read_dep <- function(dir, base) {
+  candidates <- c(
+    file.path(dir, paste0(base, ".csv")),
+    file.path(dir, paste0(base, ".CSV")),
+    file.path(dir, paste0(base, ".rds")),
+    file.path(dir, paste0(base, ".RDS")),
+    file.path(dir, paste0(base, ".parquet")),
+    file.path(dir, paste0(base, ".feather")),
+    file.path(dir, paste0(base, ".xlsx"))
   )
-})
+  cand <- candidates[file.exists(candidates)]
+  if (length(cand) == 0) {
+    stop("No se encontró el archivo depurado con extensiones .csv/.rds/.parquet/.feather/.xlsx en: ", dir)
+  }
+  f <- cand[[1]]
+  message("Cargando: ", f)
+  ext <- tools::file_ext(f)
+  if (tolower(ext) == "csv")    return(readr::read_csv(f, show_col_types = FALSE))
+  if (tolower(ext) == "rds")    return(readRDS(f))
+  if (tolower(ext) == "parquet")return(arrow::read_parquet(f))
+  if (tolower(ext) == "feather")return(arrow::read_feather(f))
+  if (tolower(ext) == "xlsx")   return(readxl::read_excel(f) %>% janitor::clean_names())
+  stop("Extensión no soportada: ", ext)
+}
+
+df <- read_dep(data_dir, base_name) %>%
+  janitor::clean_names()
+
+glimpse(df)
 ```
 
-### Confianza institucional por país
+## 1.1. Limpieza y recodificación clave (SES + demografía)
+
 ```{r}
-renderPlotly({
-  datos <- df
-  if (input$pais != "Todos") datos <- dplyr::filter(datos, cntry == input$pais)
-  if (input$gndr != "Todos") datos <- dplyr::filter(datos, gndr_lab == input$gndr)
-  if (input$ageg != "Todas") datos <- dplyr::filter(datos, age_group == input$ageg)
+# Reglas del codebook:
+# - c2weight: peso muestral (wt)
+# - gndr: 1=Hombre, 2=Mujer, 9=NA
+# - agea: recortar a 0–100
+# - mode: 9=NA
+# - w4q*: escala 1–5; 9=NA
 
-  p <- datos %>%
-    group_by(cntry) %>%
-    summarise(trust = mean(trust_index, na.rm = TRUE), .groups = "drop") %>%
-    ggplot(aes(x = reorder(cntry, trust), y = trust)) +
-    geom_col() +
-    coord_flip() +
-    labs(x = "País", y = "Índice de confianza (1–5)") +
-    theme_minimal()
+df <- df %>%
+  mutate(
+    wt = c2weight,
+    gndr = case_when(gndr == 1 ~ "Hombre",
+                     gndr == 2 ~ "Mujer",
+                     TRUE ~ NA_character_),
+    agea = ifelse(!is.na(agea), pmin(pmax(as.numeric(agea), 0), 100), NA),
+    mode = ifelse(mode == 9, NA, mode)
+  )
 
-  ggplotly(p)
-})
-```
+# Cohortes de edad
+df <- df %>%
+  mutate(age_group = cut(agea,
+                         breaks = c(-Inf, 29, 44, 64, Inf),
+                         labels = c("18–29","30–44","45–64","65+")))
 
-Row
------------------------------------------------------------------------
-
-### Prioridad w4q1 (distribución)
-```{r}
-renderPlotly({
-  datos <- df
-  if (input$pais != "Todos") datos <- dplyr::filter(datos, cntry == input$pais)
-  if (input$gndr != "Todos") datos <- dplyr::filter(datos, gndr_lab == input$gndr)
-  if (input$ageg != "Todas") datos <- dplyr::filter(datos, age_group == input$ageg)
-
-  p <- datos %>%
-    count(w4q1) %>%
-    mutate(w4q1 = factor(w4q1, levels = 1:5,
-                         labels = c("Nada", "Poco", "Medio", "Importante", "Muy"))) %>%
-    ggplot(aes(x = w4q1, y = n)) +
-    geom_col() +
-    labs(x = "w4q1 — Prioridad declarada", y = "Frecuencia") +
-    theme_minimal()
-
-  ggplotly(p)
-})
-```
-
-### Distribución de género (Hombre, Mujer, NS/NC)
-```{r}
-renderPlotly({
-  datos <- df
-  if (input$pais != "Todos") datos <- dplyr::filter(datos, cntry == input$pais)
-  if (input$ageg != "Todas") datos <- dplyr::filter(datos, age_group == input$ageg)
-
-  p <- datos %>%
-    count(gndr_lab) %>%
-    mutate(gndr_lab = forcats::fct_na_value_to_level(gndr_lab, level = "NS/NC"),
-           gndr_lab = factor(gndr_lab, levels = c("Mujer","Hombre","NS/NC"))) %>%
-    ggplot(aes(x = gndr_lab, y = n)) +
-    geom_col() +
-    labs(x = "Género", y = "Frecuencia") +
-    theme_minimal()
-
-  ggplotly(p)
-})
-```
-
-Row
------------------------------------------------------------------------
-
-### Métodos de recogida (mode)
-```{r}
-renderPlotly({
-  datos <- df
-  if (input$pais != "Todos") datos <- dplyr::filter(datos, cntry == input$pais)
-  if (input$gndr != "Todos") datos <- dplyr::filter(datos, gndr_lab == input$gndr)
-  if (input$ageg != "Todas") datos <- dplyr::filter(datos, age_group == input$ageg)
-
-  p <- datos %>%
-    count(mode_lab) %>%
-    mutate(mode_lab = factor(mode_lab, levels = c("F2F (presencial)","CATI (teléfono)","CAWI (online)","Otro","NS/NC"))) %>%
-    ggplot(aes(x = mode_lab, y = n)) +
-    geom_col() +
-    labs(x = "Método de recogida", y = "Frecuencia") +
-    theme_minimal()
-
-  ggplotly(p)
-})
-```
-
-### Tabla de detalle
-```{r}
-renderDT({
-  datos <- df
-  if (input$pais != "Todos") datos <- dplyr::filter(datos, cntry == input$pais)
-  if (input$gndr != "Todos") datos <- dplyr::filter(datos, gndr_lab == input$gndr)
-  if (input$ageg != "Todas") datos <- dplyr::filter(datos, age_group == input$ageg)
-
-  datos %>% 
-    select(idno, cntry, gndr_lab, agea, age_group, mode_lab, trust_index, w4q1, w4q14) %>%
-    datatable(options = list(pageLength = 10), filter = "top")
-})
-```
-
-Row
------------------------------------------------------------------------
-
-### Acerca de
-```{r}
-htmltools::div(
-  style = "padding: 10px;",
-  htmltools::h4("Notas"),
-  htmltools::p("Base de datos: CRON2W4e01_depurado.csv (depurada con script propio)."),
-  htmltools::p("Ítems de confianza (w4q61–w4q73) promediados en trust_index (1–5)."),
-  htmltools::p("Este dashboard usa rutas relativas para facilitar la reproducibilidad: ../Datos/CRON2W4e01_depurado.csv")
+# Recodificar todos los w4q* (9 -> NA)
+w4q_cols <- names(df) %>% keep(~ stringr::str_detect(.x, "^w4q\\d+(\\.\\d+)?$")
 )
+if (length(w4q_cols) > 0) {
+  df <- df %>% mutate(across(all_of(w4q_cols), ~ dplyr::na_if(., 9)))
+}
+
+build_ses_within_country <- function(df) {
+  df %>%
+    group_by(cntry) %>%
+    mutate(
+      ses_quintil = case_when(
+        n_distinct(na.omit(hinctnta)) >= 5 ~ ntile(hinctnta, 5),
+        n_distinct(na.omit(eduyrs)) >= 5   ~ ntile(eduyrs, 5),
+        n_distinct(na.omit(hincfel)) >= 5  ~ ntile(hincfel, 5),
+        TRUE ~ NA_integer_
+      )
+    ) %>%
+    ungroup() %>%
+    mutate(ses_quintil = factor(
+      ses_quintil, levels = 1:5,
+      labels = c("Q1 (bajo)","Q2","Q3","Q4","Q5 (alto)")
+    ))
+}
+
+df <- build_ses_within_country(df)
+
+
+# Índices temáticos (media de ítems disponibles por fila)
+trust_cols <- names(df) %>% keep(~ .x %in% paste0("w4q", 61:73))
+prio_cols  <- names(df) %>% keep(~ .x %in% paste0("w4q",  1:15))
+mh_cols    <- names(df) %>% keep(~ .x %in% paste0("w4q", 47:60))
+
+row_mean_or_na <- function(x) { if (sum(!is.na(x))>0) mean(x, na.rm=TRUE) else NA_real_ }
+
+df <- df %>%
+  rowwise() %>%
+  mutate(trust_index = row_mean_or_na(c_across(all_of(trust_cols))),
+         prio_index  = row_mean_or_na(c_across(all_of(prio_cols))),
+         mh_index    = row_mean_or_na(c_across(all_of(mh_cols)))) %>%
+  ungroup()
 ```
+
+## 1.2. Funciones auxiliares (ponderación y utilidades)
+
+```{r}
+w_mean <- function(x, w) {
+  idx <- !is.na(x) & !is.na(w)
+  if (!any(idx)) return(NA_real_)
+  stats::weighted.mean(x[idx], w[idx])
+}
+
+w_prop <- function(x, w, value) {
+  idx <- !is.na(x) & !is.na(w)
+  if (!any(idx)) return(NA_real_)
+  sum((x[idx] == value) * w[idx]) / sum(w[idx])
+}
+```
+
+# 2. KPIs por SES × edad × género
+
+```{r}
+kpi <- df %>%
+  filter(!is.na(ses_quintil), !is.na(age_group), !is.na(gndr)) %>%
+  group_by(ses_quintil, age_group, gndr) %>%
+  summarise(
+    n = dplyr::n(),
+    trust_mean = w_mean(trust_index, wt),
+    prio_mean  = w_mean(prio_index, wt),
+    mh_mean    = w_mean(mh_index, wt),
+    hincfel_mean = w_mean(hincfel, wt),
+    .groups = "drop"
+  ) %>%
+  arrange(ses_quintil, age_group, gndr)
+
+kpi %>% head(20)
+```
+
+# 3. Distribuciones Likert por **SES × edad × género** (facetas)
+
+```{r}
+item <- params$likert_items[[1]]  # por defecto w4q61 (p.ej. confianza en sector público)
+
+dist_likert <- df %>%
+  filter(!is.na(.data[[item]]), !is.na(ses_quintil), !is.na(age_group), !is.na(gndr)) %>%
+  count(ses_quintil, age_group, gndr, resp = .data[[item]], wt = wt, name = "w_count") %>%
+  group_by(ses_quintil, age_group, gndr) %>%
+  mutate(prop = w_count / sum(w_count)) %>%
+  ungroup()
+
+ggplot(dist_likert, aes(x = ses_quintil, y = prop, fill = factor(resp))) +
+  geom_col(position = "fill", width = 0.85) +
+  facet_grid(gndr ~ age_group) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_viridis(discrete = TRUE, option = "C", direction = -1, name = "Respuesta (1–5)") +
+  labs(title = paste("Distribución de", item, "por SES, edad y género"),
+       x = "Nivel socioeconómico (quintiles)", y = "Proporción ponderada") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+```
+
+# 4. Heatmap: confianza media por **país × SES** (contexto por país, color = SES)
+
+```{r}
+heat_df <- df %>%
+  filter(!is.na(cntry), !is.na(ses_quintil), !is.na(trust_index)) %>%
+  group_by(cntry, ses_quintil) %>%
+  summarise(trust_mean = w_mean(trust_index, wt), .groups = "drop")
+
+ggplot(heat_df, aes(x = ses_quintil, y = forcats::fct_reorder(cntry, trust_mean, .fun = mean, .desc = TRUE), fill = trust_mean)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(option = "D", name = "Confianza media (1–5)", limits = c(1, 5)) +
+  labs(title = "Confianza institucional media por país y quintil SES",
+       x = "Nivel socioeconómico", y = "País") +
+  theme_minimal(base_size = 12)
+```
+
+# 5. Dispersión: bienestar subjetivo vs confianza (color = SES) **con facetas por género**
+
+```{r}
+df_scatter <- df %>%
+  filter(!is.na(hincfel), !is.na(trust_index), !is.na(ses_quintil), !is.na(gndr))
+
+ggplot(df_scatter, aes(x = hincfel, y = trust_index, color = ses_quintil)) +
+  geom_point(alpha = 0.5, size = 1.2) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ gndr) +
+  scale_color_viridis(discrete = TRUE, option = "C", name = "Quintil SES") + 
+  scale_y_continuous(limits = c(0, 25)) +
+  labs(title = "Satisfacción con ingresos vs. Confianza institucional (facetas por género)",
+       x = "Satisfacción con ingresos (hincfel)", y = "Índice de confianza institucional") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+```
+
+# 6. Tendencias: prioridades sociales (índice) por SES con media global y líneas por país (suaves)
+
+```{r}
+prio_df <- df %>%
+  filter(!is.na(prio_index), !is.na(ses_quintil), !is.na(cntry)) %>%
+  group_by(cntry, ses_quintil) %>%
+  summarise(prio_mean = w_mean(prio_index, wt), .groups = "drop")
+
+ggplot(prio_df, aes(x = ses_quintil, y = prio_mean, group = cntry)) +
+  geom_line(alpha = 0.25) +
+  geom_point(alpha = 0.25) +
+  stat_summary(aes(group = 1), fun = mean, geom = "line", size = 1.2, color = "black") +
+  scale_y_continuous(limits = c(1, 5)) +
+  labs(title = "Prioridades sociales (índice) por SES con tendencia promedio",
+       x = "Nivel socioeconómico", y = "Índice de prioridades (1–5)") +
+  theme_minimal(base_size = 12)
+```
+
+# 7. Panel automático: **todas las variables de confianza** (loop)
+
+```{r, fig.height=6}
+plot_likert_ses_age <- function(item_name) {
+  tmp <- df %>%
+    filter(!is.na(.data[[item_name]]), !is.na(ses_quintil), !is.na(age_group)) %>%
+    count(ses_quintil, age_group, resp = .data[[item_name]], wt = wt, name = "w_count") %>%
+    group_by(ses_quintil, age_group) %>%
+    mutate(prop = w_count / sum(w_count)) %>%
+    ungroup()
+  ggplot(tmp, aes(x = ses_quintil, y = prop, fill = factor(resp))) +
+    geom_col(position = "fill", width = 0.85) +
+    facet_wrap(~ age_group, nrow = 1) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_fill_viridis(discrete = TRUE, option = "C", direction = -1, name = "Resp (1–5)") +
+    labs(title = paste(item_name, "por SES y edad"),
+         x = "Nivel socioeconómico", y = "Proporción ponderada") +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "bottom")
+}
+
+purrr::walk(params$likert_items, ~ print(plot_likert_ses_age(.x)))
+```
+
+# 8. Notas de diseño y uso
+
+- El **color** codifica **nivel socioeconómico**; país aparece como contexto (no como color principal).
+- Se aplican **pesos muestrales** (`c2weight`) en los resúmenes para asegurar representatividad.
+- Escalas **Likert**: 1–5; valores `9`/NA excluidos en proporciones.
+- Variables demográficas clave incluidas: **edad (cohortes), género, educación**; puedes añadir `region` o `mode` como filtros siguiendo el mismo patrón.
+- **Para usar tu archivo depurado**: teje (Knit) este `.Rmd` en tu PC; si la ruta base es distinta, ajusta `params$data_dir` y `params$base_name` en el YAML.

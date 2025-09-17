@@ -1,69 +1,111 @@
 ---
-title: "Informe técnico — Reto 2"
-author: "Tu Nombre"
+title: "Informe Técnico – Proyecto CRONOS2"
+author: "Jose Carlos Gomez Fernandez"
 date: "`r Sys.Date()`"
-output: 
-  pdf_document: default
-  html_document:
-    toc: true
-    toc_float: true
-params:
-  data_file: "../Datos/CRON2W4e01_depurado.csv"
+output: word_document
+---
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-suppressPackageStartupMessages({
-  library(tidyverse)
-  library(readr)
-  library(DT)
-  library(glue)
-})
+library(tidyverse)   # readr, dplyr, ggplot2, forcats, etc.
+library(knitr)
+
 ```
 
-# Introducción
-Este informe resume algunos de los principales hallazgos del proyecto de Ciencia de Datos, basados en el dataset **CRONOS2 Wave 4**.  
-Los análisis se enfocan en **la confianza institucional** y en las **diferencias sociodemográficas** (género y edad).
+## 1. Datos y preparación
 
-# Carga de datos
-```{r}
-df <- read_csv(params$data_file, show_col_types = FALSE)
-n_registros <- nrow(df)
-n_vars <- ncol(df)
-glue("Número de registros: {n_registros} | Número de variables: {n_vars}")
-```
 
-# Tabla resumen
 ```{r}
-resumen <- df %>%
-  summarise(
-    N = n(),
-    Edad_media = mean(agea, na.rm = TRUE),
-    Confianza_media = mean(trust_index, na.rm = TRUE)
+df <- readr::read_csv("C:/Users/zoso9/Desktop/M8-Reto-2/Datos/CRON2W4e01_depurado.csv", 
+                      show_col_types = FALSE)
+
+# Normalizar nombres de columnas
+names(df) <- tolower(names(df))
+names(df) <- gsub("[^a-z0-9]+", "_", names(df))
+
+# Reglas comunes del codebook:
+# gndr: 1=Hombre, 2=Mujer (otros/9 -> NA)
+# agea: acotar a 0–100
+# w4q*: Likert 1–5; 9 -> NA
+
+df <- df %>%
+  mutate(
+    gndr = case_when(gndr == 1 ~ "Hombre",
+                     gndr == 2 ~ "Mujer",
+                     TRUE ~ NA_character_),
+    agea = ifelse(!is.na(agea), pmin(pmax(as.numeric(agea), 0), 100), NA_real_)
   )
-DT::datatable(resumen, options = list(dom = 't'))
+
+# Recodificar 9 -> NA para todos los w4q*
+w4q_cols <- names(df)[grepl("^w4q[0-9]+(\\.[0-9]+)?$", names(df))]
+if (length(w4q_cols) > 0) {
+  df[w4q_cols] <- lapply(df[w4q_cols], function(x) { x[x == 9] <- NA; x })
+}
+
+# Índice de confianza institucional (w4q61–w4q73)
+trust_cols <- intersect(names(df), paste0("w4q", 61:73))
+df <- df %>%
+  rowwise() %>%
+  mutate(trust_index = if (sum(!is.na(c_across(all_of(trust_cols)))) > 0)
+                         mean(c_across(all_of(trust_cols)), na.rm = TRUE)
+                       else NA_real_) %>%
+  ungroup()
+
 ```
 
-El dataset contiene `r n_registros` observaciones. La edad promedio es de `r round(mean(df$agea, na.rm=TRUE),1)` años, y la confianza institucional media es `r round(mean(df$trust_index, na.rm=TRUE),2)`.
+## 2. Tabla resumen de indicadores
 
-# Gráfico principal
-A continuación, se muestra el **índice de confianza institucional medio por país y género**:
 
 ```{r}
-df %>%
-  filter(gndr_lab %in% c("Hombre","Mujer")) %>%
-  group_by(cntry, gndr_lab) %>%
-  summarise(trust = mean(trust_index, na.rm = TRUE), .groups = "drop") %>%
-  ggplot(aes(x = reorder(cntry, trust), y = trust, fill = gndr_lab)) +
-  geom_col(position = position_dodge()) +
-  coord_flip() +
-  labs(x = "País", y = "Índice de confianza (1–5)", fill = "Género") +
-  theme_minimal()
+tabla_resumen <- df %>%
+  summarise(
+    n = n(),
+    edad_media = mean(agea, na.rm = TRUE),
+    edad_sd    = sd(agea, na.rm = TRUE),
+    hincfel_media = mean(hincfel, na.rm = TRUE),
+    trust_media   = mean(trust_index, na.rm = TRUE)
+  )
+
+tabla_resumen
+
+
 ```
 
-Este gráfico permite observar comparaciones entre países y las diferencias de confianza según el género.
 
-# Conclusiones
-- Los valores de confianza institucional oscilan entre 1 y 5, con una media en torno a 3.  
-- Se observan diferencias entre países y entre hombres y mujeres.  
-- El análisis permite orientar políticas públicas o investigaciones futuras sobre la percepción ciudadana.
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+``
+## 3. Gráfico principal
+
+
+
+```{r}
+# Confianza media por país (media simple para mantener dependencias mínimas)
+heat_df <- df %>%
+  filter(!is.na(cntry)) %>%
+  group_by(cntry) %>%
+  summarise(trust_mean = mean(trust_index, na.rm = TRUE), .groups = "drop")
+
+ggplot(heat_df, aes(x = trust_mean, y = forcats::fct_reorder(cntry, trust_mean))) +
+  geom_col() +
+  labs(title = "Confianza institucional media por país",
+       x = "Confianza media", y = "País") +
+  theme_minimal(base_size = 12)
+
+
+```
+
+``
+
+## 4. Interpretación
+
+En nuestra muestra (r tabla_resumen$n casos), la edad media es de r round(tabla_resumen$edad_media,1) años
+(D.E. r round(tabla_resumen$edad_sd,1)).
+La satisfacción con ingresos promedia r round(tabla_resumen$hincfel_media,2).
+El índice de confianza institucional medio es r round(tabla_resumen$trust_media,2).
+
+El gráfico muestra la variación de la confianza media por país, lo que permite identificar diferencias relevantes para
+profundizar en el dashboard (p. ej., segmentando por nivel socioeconómico, edad y género en análisis posteriores).
+

@@ -1,61 +1,96 @@
 ---
-title: "Presentación — Reto 2"
-author: "Tu Nombre"
+title: "Presentación – Proyecto CRONOS2"
+author: "Jose Carlos Gomez Fernandez"
 date: "`r Sys.Date()`"
 output: ioslides_presentation
-params:
-  data_file: "../Datos/CRON2W4e01_depurado.csv"
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-suppressPackageStartupMessages({
-  library(tidyverse)
-  library(readr)
-  library(DT)
-  library(glue)
-})
-df <- read_csv(params$data_file, show_col_types = FALSE)
+library(tidyverse)
+library(knitr)
+df <- readr::read_csv("C:/Users/zoso9/Desktop/M8-Reto-2/Datos/CRON2W4e01_depurado.csv",
+                      show_col_types = FALSE)
+
+# Normalizar nombres de columnas
+names(df) <- tolower(names(df))
+names(df) <- gsub("[^a-z0-9]+", "_", names(df))
+
+# Reglas comunes del codebook
+df <- df %>%
+  mutate(
+    gndr = case_when(gndr == 1 ~ "Hombre",
+                     gndr == 2 ~ "Mujer",
+                     TRUE ~ NA_character_),
+    agea = ifelse(!is.na(agea), pmin(pmax(agea, 0), 100), NA_real_)
+  )
+
+# Calcular índice de confianza institucional
+trust_cols <- intersect(names(df), paste0("w4q", 61:73))
+df <- df %>%
+  rowwise() %>%
+  mutate(trust_index = if (sum(!is.na(c_across(all_of(trust_cols)))) > 0)
+                         mean(c_across(all_of(trust_cols)), na.rm = TRUE)
+                       else NA_real_) %>%
+  ungroup()
+
 ```
 
-## Objetivos del proyecto
-- Analizar la **confianza institucional** en distintos países.
-- Explorar diferencias sociodemográficas (edad, género).
-- Elaborar un **dashboard interactivo** y un informe reproducible.
+## Introducción
+Este proyecto utiliza datos de CRONOS-2 Wave 4, una encuesta internacional sobre actitudes sociales y políticas. El objetivo es analizar la confianza en diferentes cuestiones sociales y explorar cómo varía según factores sociodemográficos como edad, género y nivel socioeconómico.
+
+La presentación ofrece una visión descriptiva de los indicadores principales y destaca patrones relevantes para comprender la relación entre ciudadanía y opinión.
 
 ## Tabla resumen
 ```{r}
-resumen <- df %>%
-  summarise(
-    N = n(),
-    Edad_media = mean(agea, na.rm = TRUE),
-    Confianza_media = mean(trust_index, na.rm = TRUE)
-  )
-knitr::kable(resumen, digits = 2)
-```
-El dataset contiene **`r nrow(df)` observaciones** y **`r ncol(df)` variables**.
-La edad promedio es **`r round(mean(df$agea, na.rm=TRUE),1)` años**,
-y la confianza institucional media es **`r round(mean(df$trust_index, na.rm=TRUE),2)`**.
+ggplot(data = df, aes(x = agea)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "white") +
+  labs(title = "Distribución de la edad de la muestra",
+       x = "Edad", y = "Frecuencia") +
+  theme_minimal(base_size = 14)
 
-## Gráfico principal
-```{r}
+
+ggplot(data = df %>% filter(!is.na(gndr)), aes(x = gndr)) +
+  geom_bar(fill = "tomato") +
+  labs(title = "Distribución por género",
+       x = "Género", y = "Número de casos") +
+  theme_minimal(base_size = 14)
+
+# Seleccionar solo columnas de confianza
+trust_cols <- intersect(names(df), paste0("w4q", 61:73))
+
+# Seleccionar variables de confianza
+trust_cols <- intersect(names(df), paste0("w4q", 61:73))
+
 df %>%
-  filter(gndr_lab %in% c("Hombre","Mujer")) %>%
-  group_by(cntry, gndr_lab) %>%
-  summarise(trust = mean(trust_index, na.rm = TRUE), .groups = "drop") %>%
-  ggplot(aes(x = reorder(cntry, trust), y = trust, fill = gndr_lab)) +
-  geom_col(position = position_dodge()) +
+  select(all_of(paste0("w4q", 61:73))) %>%
+  pivot_longer(cols = everything(), names_to = "Institucion", values_to = "Confianza") %>%
+  filter(!is.na(Confianza)) %>%
+  group_by(Institucion) %>%
+  summarise(Media_confianza = mean(Confianza, na.rm = TRUE)) %>%
+  ggplot(aes(x = reorder(Institucion, Media_confianza),
+             y = Media_confianza, fill = Institucion)) +
+  geom_col(show.legend = FALSE) +
   coord_flip() +
-  labs(x = "País", y = "Índice de confianza (1–5)", fill = "Género") +
-  theme_minimal()
+  labs(title = "Confianza media en instituciones (w4q61–w4q73)",
+       x = "Variable", y = "Media (1–5)") +
+  theme_minimal(base_size = 14)
+
+
+
+
 ```
 
-## Conclusiones
-- La confianza institucional media se sitúa en torno a **3 puntos** (escala 1–5).
-- Existen **diferencias entre países** y según el **género**.
-- Los resultados apoyan la necesidad de estudios comparativos internacionales.
 
-## Próximos pasos
-- Ampliar análisis con más indicadores sociodemográficos.
-- Incorporar series temporales si están disponibles.
-- Explorar modelos predictivos.
+## Interpretación
+En nuestra muestra (6.032 casos):
+
+La edad media es de 50,8 años
+(D.E. = 29,4).
+
+La satisfacción con los ingresos presenta un promedio de 1,7 en una escala de 1 a 10.
+
+El índice medio de confianza institucional es de 4,5 en una escala de 1 a 5.
+
+👉 Estos resultados muestran diferencias notables entre países, lo que subraya la importancia de considerar los factores sociodemográficos y económicos en el análisis de la confianza en las instituciones.
